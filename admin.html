@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>活码配置生成器 · 一键上传转URL</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+            background: #f0f4f8;
+            margin: 0;
+            padding: 24px 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .card {
+            max-width: 600px;
+            width: 100%;
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            padding: 28px 24px;
+        }
+        h1 {
+            font-size: 1.8rem;
+            margin: 0 0 8px;
+            background: linear-gradient(135deg, #2b6e4f, #1e4a3b);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+        .sub {
+            color: #5a6e7c;
+            margin-bottom: 24px;
+            border-left: 3px solid #2b6e4f;
+            padding-left: 12px;
+        }
+        .upload-area {
+            background: #f9fbfd;
+            border: 2px dashed #cbdde6;
+            border-radius: 24px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .upload-area:hover {
+            border-color: #2b6e4f;
+            background: #f4f9f6;
+        }
+        .upload-icon {
+            font-size: 48px;
+            color: #2b6e4f;
+            margin-bottom: 8px;
+        }
+        #fileInput {
+            display: none;
+        }
+        .preview {
+            text-align: center;
+            margin: 16px 0;
+        }
+        .preview img {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        button {
+            flex: 1;
+            background: #2b6e4f;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 60px;
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        button.secondary {
+            background: #e2e8f0;
+            color: #1e4620;
+        }
+        button.danger {
+            background: #f5f5f5;
+            color: #7f8c8d;
+        }
+        button:active { transform: scale(0.97); }
+        .output {
+            background: #1e2a3a;
+            color: #e2e8f0;
+            padding: 16px;
+            border-radius: 20px;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-top: 20px;
+        }
+        .copy-btn {
+            background: #3b82f6;
+            margin-top: 12px;
+            width: auto;
+            display: inline-flex;
+        }
+        .status {
+            font-size: 13px;
+            margin-top: 12px;
+            color: #2c5a47;
+        }
+        hr {
+            margin: 24px 0;
+            border: 0;
+            border-top: 1px solid #e2edf2;
+        }
+        .footer-note {
+            font-size: 12px;
+            color: #8ba0ae;
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+<div class="card">
+    <h1>📸 活码图片转换器</h1>
+    <div class="sub">上传会过期的微信群二维码 → 自动生成 config.json 内容，一键更新</div>
+
+    <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">📁</div>
+        <div>点击或拖拽上传二维码图片</div>
+        <div style="font-size:12px; color:#7f8c8d;">支持 JPG / PNG / WEBP，小于 2MB</div>
+        <input type="file" id="fileInput" accept="image/jpeg,image/png,image/webp">
+    </div>
+
+    <div id="preview" class="preview" style="display: none;">
+        <img id="previewImg" alt="预览">
+        <div class="status" id="statusMsg"></div>
+    </div>
+
+    <div class="btn-group">
+        <button id="useBase64Btn" disabled>🔗 转为 Base64（自包含）</button>
+        <button id="uploadToSmmsBtn" disabled>☁️ 上传到图床 (sm.ms)</button>
+    </div>
+
+    <div id="resultArea" style="display: none;">
+        <hr>
+        <h3>✨ 生成的 config.json 内容：</h3>
+        <div class="output" id="jsonOutput"></div>
+        <button id="copyJsonBtn" class="copy-btn">📋 复制 JSON</button>
+        <div class="footer-note">
+            💡 复制后，去 GitHub 仓库编辑 config.json 文件，全部替换即可。
+        </div>
+    </div>
+
+    <div class="footer-note">
+        ⚡ 两种模式说明：<br>
+        • Base64模式：图片数据直接内嵌在 JSON 中，无需图床，但 JSON 文件会稍大（二维码很小，可接受）。<br>
+        • 图床模式：通过 sm.ms 免费上传，返回永久图片链接，JSON 文件非常小，推荐使用。
+    </div>
+</div>
+
+<script>
+    const fileInput = document.getElementById('fileInput');
+    const uploadArea = document.getElementById('uploadArea');
+    const previewDiv = document.getElementById('preview');
+    const previewImg = document.getElementById('previewImg');
+    const statusMsg = document.getElementById('statusMsg');
+    const useBase64Btn = document.getElementById('useBase64Btn');
+    const uploadToSmmsBtn = document.getElementById('uploadToSmmsBtn');
+    const resultArea = document.getElementById('resultArea');
+    const jsonOutput = document.getElementById('jsonOutput');
+    const copyJsonBtn = document.getElementById('copyJsonBtn');
+
+    let currentFile = null;
+    let currentDataUrl = null; // 用于 base64 模式
+
+    // 点击上传区域触发文件选择
+    uploadArea.addEventListener('click', () => fileInput.click());
+    uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.style.borderColor = '#2b6e4f'; });
+    uploadArea.addEventListener('dragleave', () => uploadArea.style.borderColor = '#cbdde6');
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = '#cbdde6';
+        const file = e.dataTransfer.files[0];
+        if (file && file.type.match('image/jpeg|image/png|image/webp')) handleFile(file);
+        else alert('请上传图片文件 (jpg/png/webp)');
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    function handleFile(file) {
+        if (file.size > 2 * 1024 * 1024) {
+            alert('图片不能超过 2MB');
+            return;
+        }
+        currentFile = file;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            currentDataUrl = e.target.result;
+            previewImg.src = currentDataUrl;
+            previewDiv.style.display = 'block';
+            statusMsg.innerHTML = '✅ 图片已加载，选择转换方式';
+            useBase64Btn.disabled = false;
+            uploadToSmmsBtn.disabled = false;
+            resultArea.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // 生成 JSON 并显示
+    function showJson(configObj) {
+        const jsonStr = JSON.stringify(configObj, null, 2);
+        jsonOutput.innerText = jsonStr;
+        resultArea.style.display = 'block';
+    }
+
+    // Base64 模式
+    useBase64Btn.addEventListener('click', () => {
+        if (!currentDataUrl) return;
+        const now = new Date().toLocaleString();
+        const config = {
+            targetImageUrl: currentDataUrl,
+            lastUpdated: now
+        };
+        showJson(config);
+        statusMsg.innerHTML = '🎉 Base64 模式配置已生成，可直接复制使用';
+    });
+
+    // 上传到 sm.ms 图床
+    uploadToSmmsBtn.addEventListener('click', async () => {
+        if (!currentFile) return;
+        statusMsg.innerHTML = '⏳ 正在上传到图床，请稍候...';
+        uploadToSmmsBtn.disabled = true;
+        const formData = new FormData();
+        formData.append('smfile', currentFile);
+
+        try {
+            const response = await fetch('https://sm.ms/api/v2/upload', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await response.json();
+            if (data.success) {
+                const imgUrl = data.data.url;
+                const now = new Date().toLocaleString();
+                const config = {
+                    targetImageUrl: imgUrl,
+                    lastUpdated: now
+                };
+                showJson(config);
+                statusMsg.innerHTML = '✅ 上传成功！图片永久链接已生成。';
+            } else {
+                // 如果图片已存在，sm.ms 会返回错误但包含已有链接
+                if (data.images) {
+                    const imgUrl = data.images;
+                    const now = new Date().toLocaleString();
+                    const config = {
+                        targetImageUrl: imgUrl,
+                        lastUpdated: now
+                    };
+                    showJson(config);
+                    statusMsg.innerHTML = '⚠️ 图片已存在于图床，直接使用已有链接。';
+                } else {
+                    throw new Error(data.message || '上传失败');
+                }
+            }
+        } catch (err) {
+            console.error(err);
+            statusMsg.innerHTML = '❌ 上传失败：' + (err.message || '网络错误，请重试');
+        } finally {
+            uploadToSmmsBtn.disabled = false;
+        }
+    });
+
+    // 复制 JSON
+    copyJsonBtn.addEventListener('click', () => {
+        const text = jsonOutput.innerText;
+        navigator.clipboard.writeText(text).then(() => {
+            const originalText = copyJsonBtn.innerHTML;
+            copyJsonBtn.innerHTML = '✅ 已复制！';
+            setTimeout(() => { copyJsonBtn.innerHTML = originalText; }, 2000);
+        }).catch(() => alert('手动复制吧'));
+    });
+</script>
+</body>
+</html>
